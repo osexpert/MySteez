@@ -5,7 +5,17 @@ VisualStudioVersion = 17.5.33516.290
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnitTests", "UnitTests\UnitTests.csproj", "{94661997-83C4-4E80-8FE1-E85294476A0D}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tidbits", "Tidbits\Tidbits.csproj", "{B522AE5F-1DDA-4D23-83DD-266FF9057785}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tidbits", "Tidbits\Tidbits.csproj", "{811004C1-2453-4572-B07E-DBE3B89A6FD1}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DapperSetIn", "DapperSetIn\DapperSetIn.csproj", "{FADFDE3C-0807-4B76-8E53-999023846BE0}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DapperTestNySetIn", "DapperTestNySetIn\DapperTestNySetIn.csproj", "{75592F38-E895-468C-9532-15911B07B3EC}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JsonValueNameEnumConverter", "JsonValueNameEnumConverter\JsonValueNameEnumConverter.csproj", "{4B703F90-1B17-4860-9B8E-E43BAC426033}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "net6", "net6\net6.csproj", "{DABB760F-B99F-4BC2-A930-5275B2D2DB0D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pivot", "Pivot\Pivot.csproj", "{95B08583-3710-4885-BF96-105C3625215C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,10 +27,30 @@ Global
 		{94661997-83C4-4E80-8FE1-E85294476A0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{94661997-83C4-4E80-8FE1-E85294476A0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{94661997-83C4-4E80-8FE1-E85294476A0D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B522AE5F-1DDA-4D23-83DD-266FF9057785}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B522AE5F-1DDA-4D23-83DD-266FF9057785}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B522AE5F-1DDA-4D23-83DD-266FF9057785}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B522AE5F-1DDA-4D23-83DD-266FF9057785}.Release|Any CPU.Build.0 = Release|Any CPU
+		{811004C1-2453-4572-B07E-DBE3B89A6FD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{811004C1-2453-4572-B07E-DBE3B89A6FD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{811004C1-2453-4572-B07E-DBE3B89A6FD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{811004C1-2453-4572-B07E-DBE3B89A6FD1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FADFDE3C-0807-4B76-8E53-999023846BE0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FADFDE3C-0807-4B76-8E53-999023846BE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FADFDE3C-0807-4B76-8E53-999023846BE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FADFDE3C-0807-4B76-8E53-999023846BE0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{75592F38-E895-468C-9532-15911B07B3EC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{75592F38-E895-468C-9532-15911B07B3EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{75592F38-E895-468C-9532-15911B07B3EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{75592F38-E895-468C-9532-15911B07B3EC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4B703F90-1B17-4860-9B8E-E43BAC426033}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4B703F90-1B17-4860-9B8E-E43BAC426033}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4B703F90-1B17-4860-9B8E-E43BAC426033}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4B703F90-1B17-4860-9B8E-E43BAC426033}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DABB760F-B99F-4BC2-A930-5275B2D2DB0D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DABB760F-B99F-4BC2-A930-5275B2D2DB0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DABB760F-B99F-4BC2-A930-5275B2D2DB0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DABB760F-B99F-4BC2-A930-5275B2D2DB0D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{95B08583-3710-4885-BF96-105C3625215C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{95B08583-3710-4885-BF96-105C3625215C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{95B08583-3710-4885-BF96-105C3625215C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{95B08583-3710-4885-BF96-105C3625215C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
