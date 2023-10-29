@@ -5,11 +5,16 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Dynamic;
 using System.Globalization;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using CsvHelper;
 using CsvHelper.Configuration.Attributes;
 using NotVisualBasic;
@@ -59,18 +64,39 @@ namespace Pivot
 		
 	}
 
-	public class Table
+	public class Table<TRow>
 	{
-		public List<TableColumn> Columns { get; set; }
+		public List<TableColumn> RowGroups { get; set; }
 		public List<TableColumn> ColumnGroups { get; set; }
-		public List<object?[]> Rows { get; set; }
-		public object?[]? GrandTotalRow { get; set; }
+		public List<TableColumn> Columns { get; set; }
+
+		public List<TRow> Rows { get; set; }
+		public TRow? GrandTotalRow { get; set; }
+
+		//public void ChangeTypeToName(bool fullName = false)
+		//{
+		//	foreach (var c in this.Columns)
+		//	{
+		//		if (c.DataType is Type t)
+		//			c.DataType = fullName ? (t.FullName ?? t.Name) : t.Name;
+		//	}
+		//	foreach (var c in this.ColumnGroups)
+		//	{
+		//		if (c.DataType is Type t)
+		//			c.DataType = fullName ? (t.FullName ?? t.Name) : t.Name;
+		//	}
+		//}
+
 	}
 
 	public class TableColumn
 	{
 		public string Name { get; set; }
-		public object DataType { get; set; }
+
+		[JsonIgnore]
+		public Type DataType { get; set; }
+
+		public string TypeName => DataType.Name;
 
 		public FieldType FieldType { get; set; }
 		public int GroupIndex { get; set; }
@@ -119,6 +145,24 @@ namespace Pivot
 
 		public void Test()
 		{
+			//	List<ExpandoObject> lx = new();//
+			//			var x = new ExpandoObject();
+			//		x.TryAdd("Test/:\"ttt", "hello");
+			//			lx.Add(x);
+
+			//List<Dictionary<string, object?>> listtt = new();
+
+			//Dictionary<string, object?> row = new();
+			//row.Add("Test/:\"ttt", "hello");
+			//row.Add("Testttt", 42);
+			//row.Add("ATestttt", 43);
+			//listtt.Add(row);
+
+			//using (var f = File.Open(@"d:\testwrite.json", FileMode.Create))
+			//{
+			//	JsonSerializer.Serialize(f, listtt, new JsonSerializerOptions { WriteIndented = true });
+			//}
+
 			//var datas = new CsvTextFieldParser(@"d:\5m Sales Records.csv");
 
 			//while (!datas.EndOfData)
@@ -173,7 +217,7 @@ namespace Pivot
 
 			//GetField(fieldsss, "ShipDate").Sort = Sort.Desc;
 
-			fieldsss.Add(new Field { FieldType = FieldType.Data, FieldName = "RowCount", Sorting = Sorting.Desc, DataType = typeof(int), SortIndex = 0 });
+			fieldsss.Add(new Field { FieldType = FieldType.Data, FieldName = "RowCount", Sorting = Sorting.None, DataType = typeof(int), SortIndex = 0 });
 
 			var props = new List<PropertyDescriptor>();
 
@@ -212,19 +256,23 @@ namespace Pivot
 //			TypeValue: object, name, fullname
 
 			var pp = new Pivoter<CsvRow>(fieldsss, allRTows, new PropertyDescriptorCollection(props.ToArray()));
-			
 
-			var dt = pp.GetTableSlowIntersect();
-			foreach (var c in dt.Columns)
+
+			var tbl = pp.GetTableFastIntersect_DictArr();
+			
+			using (var f = File.Open(@"d:\testdt5mill2_fast.json", FileMode.Create))
 			{
-				if (c.DataType is Type t)
-					c.DataType = t.Name;
+				JsonSerializer.Serialize(f, tbl, new JsonSerializerOptions { WriteIndented = true });
 			}
-			foreach (var c in dt.ColumnGroups)
-			{
-				if (c.DataType is Type t)
-					c.DataType = t.Name;
-			}
+
+
+			var datat = pp.GetDataTable();
+
+			datat.WriteXml(@"d:\testdt5mill2_fast.xml");
+
+
+			var dt = pp.GetTableSlowIntersect_objectArr();
+//			dt.ChangeTypeToName();
 
 			//var dt = pp.GetTableSlowIntersect();
 
@@ -241,17 +289,8 @@ namespace Pivot
 			dt = null;
 
 
-			var dtF = pp.GetTableFastIntersect();
-			foreach (var c in dtF.Columns)
-			{
-				if (c.DataType is Type t)
-					c.DataType = t.Name;
-			}
-			foreach (var c in dtF.ColumnGroups)
-			{
-				if (c.DataType is Type t)
-					c.DataType = t.Name;
-			}
+			var dtF = pp.GetTableFastIntersect_objectArr();
+	//		dtF.ChangeTypeToName();
 
 
 			//var dt = pp.GetTableSlowIntersect();
@@ -261,7 +300,7 @@ namespace Pivot
 			//dt.WriteXml(@"d:\testdt5mill.xml");
 			using (var f = File.Open(@"d:\testdt5mill2_fast.json", FileMode.Create))
 			{
-				JsonSerializer.Serialize(f, dt, new JsonSerializerOptions { WriteIndented = true });
+				JsonSerializer.Serialize(f, dtF, new JsonSerializerOptions { WriteIndented = true });
 			}
 
 
@@ -319,7 +358,7 @@ namespace Pivot
 			var ff = new Field[] { specF,   indF, siteF };
 
 			var p = new Pivoter<Row>(ff, list, new PropertyDescriptorCollection(props.ToArray()));
-			p.GetTable();
+			//p.GetTable();
 			// TODO: dt can be slow? add option to use different construct? and then need different sorting?
 		}
 
@@ -555,6 +594,34 @@ namespace Pivot
 
 		public int GroupIndex;
 
+		internal TableColumn ToTableColumn()
+		{
+			return new(){
+				Name = FieldName,
+				DataType = DataType,
+				FieldType = FieldType,
+				Sorting = Sorting,
+				SortIndex = SortIndex,
+				GroupIndex = GroupIndex
+			};
+
+		}
+
+		internal TableColumn ToTableColumn(string combNAme, object?[] groupVals)
+		{
+			return new()
+			{
+				Name = combNAme,
+				FieldType = FieldType,
+				DataType = DataType,
+				GroupIndex = GroupIndex,
+				SortIndex = SortIndex,
+				Sorting = Sorting,
+				GroupValues = groupVals
+			};
+
+		}
+
 		// FUNC to get display text?
 		// Compare\equal by value or text?
 
@@ -565,7 +632,7 @@ namespace Pivot
 		// TOTAL value stored here?
 
 		// Should we cache the value for every row?
-		internal int idx;
+		//internal int idx;
 	}
 
 	public class FieldGen<T> : Field
@@ -590,17 +657,17 @@ namespace Pivot
 	}
 
 
-	class IntersectData
-	{
-		Dictionary<Field, object?> values = new();
+	//class IntersectData
+	//{
+	//	Dictionary<Field, object?> values = new();
 
-		internal void Add(Field dataField, object? theValue)
-		{
-			values.Add(dataField, theValue);
-		}
-	}
+	//	internal void Add(Field dataField, object? theValue)
+	//	{
+	//		values.Add(dataField, theValue);
+	//	}
+	//}
 
-	class Group<T> where T : class
+	public class Group<T> where T : class
 	{
 		/// <summary>
 		/// If true, not a group but all the rows
@@ -654,6 +721,9 @@ namespace Pivot
 
 		public Pivoter(IEnumerable<Field> fields, IEnumerable<T> list, PropertyDescriptorCollection pdc)
 		{
+			if (fields.Any(f => f.FieldType == FieldType.ColGroup) && fields.Any(f => f.FieldType == FieldType.Data && f.Sorting != Sorting.None))
+				throw new ArgumentException("Can not sort on data fields if groping on columns");
+
 			//			if (list is not IEnumerable<T>)
 			//			throw new ArgumentException("list must be IEnumerable<T>");
 
@@ -671,132 +741,127 @@ namespace Pivot
 			}
 		}
 
-		public Table GetTable(bool addGrandTotalRow = false)
-		{
-			int idx = 0;
-			foreach (var f in _fields)
-				f.idx = idx++;
+//		public Table GetTableOnlyWorkedForRowGroups(bool addGrandTotalRow = false)
+//		{
+//			int idx = 0;
+//			foreach (var f in _fields)
+//				f.idx = idx++;
 
-			var dataFields = GetDataFields().ToArray();
+//			var dataFields = GetDataFields().ToArray();
 
-			//var lastGrr = GroupRowsAllAtOnce(GetGroupFields());
-			List<Group<T>> lastGroups = GroupRows(GetGroupFields());
+//			//var lastGrr = GroupRowsAllAtOnce(GetGroupFields());
+//			List<Group<T>> lastGroups = GroupRows(GetGroupFields());
 
-			List<object?[]> rows_o = new();
+//			List<object?[]> rows_o = new();
 
-			var colCount = _fields.Count();
+//			var colCount = _fields.Count();
 
-			//if (lastGroups != null)
-			{
-				foreach (var group in lastGroups)
-				{
-					var row_o = new object?[colCount];
+//			//if (lastGroups != null)
+//			{
+//				foreach (var group in lastGroups)
+//				{
+//					var row_o = new object?[colCount];
 
-					foreach (Field dataField in dataFields)
-					{
-						var getter = _props[dataField.FieldName];
-						var theValue = getter.GetValue(group.Rows);
-						row_o[dataField.idx] = theValue;
-					}
+//					foreach (Field dataField in dataFields)
+//					{
+//						var getter = _props[dataField.FieldName];
+//						var theValue = getter.GetValue(group.Rows);
+//						row_o[dataField.idx] = theValue;
+//					}
 
-					var parent = group;
-					do
-					{
-						row_o[parent.Field.idx] = parent.Key;
-						parent = parent.ParentGroup;
-					} while (parent != null && !parent.IsRoot);
+//					var parent = group;
+//					do
+//					{
+//						row_o[parent.Field.idx] = parent.Key;
+//						parent = parent.ParentGroup;
+//					} while (parent != null && !parent.IsRoot);
 
-					rows_o.Add(row_o);
-				}
+//					rows_o.Add(row_o);
+//				}
 
-//				lastGroups = null!; // free mem
-			}
-			//else // no groups, total sum
-			//{
-			//	var row_o = new object?[colCount];
+////				lastGroups = null!; // free mem
+//			}
+//			//else // no groups, total sum
+//			//{
+//			//	var row_o = new object?[colCount];
 
-			//	foreach (Field dataField in dataFields)
-			//	{
-			//		var getter = _props[dataField.FieldName];
-			//		var theValue = getter.GetValue(_list);
-			//		row_o[dataField.idx] = theValue;
-			//	}
+//			//	foreach (Field dataField in dataFields)
+//			//	{
+//			//		var getter = _props[dataField.FieldName];
+//			//		var theValue = getter.GetValue(_list);
+//			//		row_o[dataField.idx] = theValue;
+//			//	}
 
-			//	rows_o.Add(row_o);
-			//}
-			// else...a mode for output 1:1?
-			//{
-			//	foreach (var l in _list)
-			//	{
-			//		var r = res.NewRow();
+//			//	rows_o.Add(row_o);
+//			//}
+//			// else...a mode for output 1:1?
+//			//{
+//			//	foreach (var l in _list)
+//			//	{
+//			//		var r = res.NewRow();
 
-			//		foreach (Field dataField in GetDataFields())
-			//		{
-			//			var getter = _props[dataField.FieldName];
-			//			// TODO: get value from multiple ROWS
-			//			var theValue = getter.GetValue(l.Yield());
+//			//		foreach (Field dataField in GetDataFields())
+//			//		{
+//			//			var getter = _props[dataField.FieldName];
+//			//			// TODO: get value from multiple ROWS
+//			//			var theValue = getter.GetValue(l.Yield());
 
-			//			r[dataField.FieldName] = theValue;
-			//		}
-			//	}
-			//}
-
-
-			SortRows(ref rows_o);
-
-			Table t = new();
-			t.Columns = _fields.Select(f => new TableColumn { 
-				Name = f.FieldName, 
-				DataType = f.DataType.Name, 
-				Sorting = f.Sorting,
-				SortIndex = f.SortIndex,
-				FieldType = f.FieldType,
-				GroupIndex = f.GroupIndex
-			}).ToList();
-			t.Rows = rows_o;
+//			//			r[dataField.FieldName] = theValue;
+//			//		}
+//			//	}
+//			//}
 
 
-			// add sum row after sort, always want it last.
-			// only add if we have groups, else it will always be only sum, we dont need double.
-			// TODO: should we sum group fields too??
-			// TODO: should write "Grand total" or "*" into grouped cols?
-			if (addGrandTotalRow)
-			{
-				if (lastGroups.First().IsRoot)
-				{
-					// its the same...
-					t.GrandTotalRow = rows_o.Single();
-				}
-				else // if (lastGroups != null)
-				{
-					var row_o = new object?[colCount];
+//			SortRows(ref rows_o);
 
-					foreach (var dataField in dataFields)
-					{
-						var getter = _props[dataField.FieldName];
-						var theValue = getter.GetValue(_list);
-						row_o[dataField.idx] = theValue;
-					}
-
-					t.GrandTotalRow = row_o;
-				}
-			}
-
-			// Transform to rows
-			//if (lastGroups != null)
-			{
-				var ggg = lastGroups.GroupBy(lg => GetAllColGroupLevels(lg));
-				var lol = ggg.ToList();
-			}
-
-			return t;
-		}
+//			Table t = new();
+//			t.Columns = _fields.Select(f => new TableColumn { 
+//				Name = f.FieldName, 
+//				DataType = f.DataType.Name, 
+//				Sorting = f.Sorting,
+//				SortIndex = f.SortIndex,
+//				FieldType = f.FieldType,
+//				GroupIndex = f.GroupIndex
+//			}).ToList();
+//			t.Rows = rows_o;
 
 
-		public void GroupByAnyColumns(List<string[]> rows, List<int> groupByColumnIndexes)
-		{
-			var grouped = rows.GroupBy(row => new GroupingKey<string>(groupByColumnIndexes.Select(colIdx => row[colIdx]).ToArray()));
-		}
+//			// add sum row after sort, always want it last.
+//			// only add if we have groups, else it will always be only sum, we dont need double.
+//			// TODO: should we sum group fields too??
+//			// TODO: should write "Grand total" or "*" into grouped cols?
+//			if (addGrandTotalRow)
+//			{
+//				if (lastGroups.First().IsRoot)
+//				{
+//					// its the same...
+//					t.GrandTotalRow = rows_o.Single();
+//				}
+//				else // if (lastGroups != null)
+//				{
+//					var row_o = new object?[colCount];
+
+//					foreach (var dataField in dataFields)
+//					{
+//						var getter = _props[dataField.FieldName];
+//						var theValue = getter.GetValue(_list);
+//						row_o[dataField.idx] = theValue;
+//					}
+
+//					t.GrandTotalRow = row_o;
+//				}
+//			}
+
+//			// Transform to rows
+//			//if (lastGroups != null)
+//			{
+//				var ggg = lastGroups.GroupBy(lg => GetAllColGroupLevels(lg));
+//				var lol = ggg.ToList();
+//			}
+
+//			return t;
+//		}
+
 
 
 		private GroupingKey<object?> GetAllColGroupLevels(Group<T> lg)
@@ -815,38 +880,43 @@ namespace Pivot
 			return new GroupingKey<object?>(st.ToArray());
 		}
 
-		private void SortRows(ref List<object?[]> rows)
-		{
-			var sortFields = _fields.Where(f => f.Sorting != Sorting.None).OrderBy(f => f.SortIndex);
-			if (sortFields.Any())
-			{
-				IOrderedEnumerable<object?[]> sorter = null!;
-				foreach (var sf in sortFields)
-				{
-					if (sorter == null)
-						sorter = sf.Sorting == Sorting.Asc ? rows.OrderBy(r => r[sf.idx]) : rows.OrderByDescending(r => r[sf.idx]);
-					else
-						sorter = sf.Sorting == Sorting.Asc ? sorter.ThenBy(r => r[sf.idx]) : sorter.ThenByDescending(r => r[sf.idx]);
-				}
-				rows = sorter.ToList();
-			}
-		}
+		//private void SortRows(ref List<object?[]> rows)
+		//{
+		//	var sortFields = _fields.Where(f => f.Sorting != Sorting.None).OrderBy(f => f.SortIndex);
+		//	if (sortFields.Any())
+		//	{
+		//		IOrderedEnumerable<object?[]> sorter = null!;
+		//		foreach (var sf in sortFields)
+		//		{
+		//			if (sorter == null)
+		//				sorter = sf.Sorting == Sorting.Asc ? rows.OrderBy(r => r[sf.idx]) : rows.OrderByDescending(r => r[sf.idx]);
+		//			else
+		//				sorter = sf.Sorting == Sorting.Asc ? sorter.ThenBy(r => r[sf.idx]) : sorter.ThenByDescending(r => r[sf.idx]);
+		//		}
+		//		rows = sorter.ToList();
+		//	}
+		//}
 
-		private List<object?[]> SortRowsNew(List<object?[]> rows)
+		private List<object?[]> SortRowsNew(List<object?[]> rows, List<TableColumn> tableCols)
 		{
 			var sortFields = _fields
 				.Where(f => f.FieldType != FieldType.ColGroup) // sorting col groups mean sorting the columns themself (the labels)
-				.Where(f => f.Sorting != Sorting.None).OrderBy(f => f.SortIndex);
+				.Where(f => f.Sorting != Sorting.None)
+				.OrderBy(f => f.SortIndex);
 
 			if (sortFields.Any())
 			{
 				IOrderedEnumerable<object?[]> sorter = null!;
 				foreach (var sf in sortFields)
 				{
+					// TODO lookup idx from filedname
+					var sortCol = tableCols.Single(tc => tc.Name == sf.FieldName);
+					var idx = tableCols.IndexOf(sortCol);
+
 					if (sorter == null)
-						sorter = sf.Sorting == Sorting.Asc ? rows.OrderBy(r => r[sf.idx]) : rows.OrderByDescending(r => r[sf.idx]);
+						sorter = sf.Sorting == Sorting.Asc ? rows.OrderBy(r => r[idx]) : rows.OrderByDescending(r => r[idx]);
 					else
-						sorter = sf.Sorting == Sorting.Asc ? sorter.ThenBy(r => r[sf.idx]) : sorter.ThenByDescending(r => r[sf.idx]);
+						sorter = sf.Sorting == Sorting.Asc ? sorter.ThenBy(r => r[idx]) : sorter.ThenByDescending(r => r[idx]);
 				}
 				rows = sorter.ToList();
 			}
@@ -856,47 +926,6 @@ namespace Pivot
 
 
 
-
-		private List<Group<T>> GroupRowsAllAtOnce(IEnumerable<Field> fields)
-		{
-			var fieldsArr = fields.ToArray();
-
-			var getters = new PropertyDescriptor[fieldsArr.Length];
-
-			for (int i = 0; i < fieldsArr.Length; i++)
-			{
-				var getter = _props[fieldsArr[i].FieldName];
-				getters[i] = getter;
-			}
-
-			GroupingKey<object?> CreateKey(T row)
-			{
-				var oa = new object?[fieldsArr.Length];
-
-				for (int i = 0; i < fieldsArr.Length; i++)
-				{
-					oa[i] = getters[i].GetValue(row.Yield());
-				}
-
-				return new GroupingKey<object?>(oa);
-			}
-
-			var grouped = _list.GroupBy(row => CreateKey(row));
-
-
-			var res = grouped.Select(g => new Group<T>()
-			{
-				Key = g.Key,
-				Rows = g,
-				Field = fieldsArr.Last(),
-				ParentGroup = null!
-			});
-
-			//return grouped.Select(g => new Pivot.Group { 
-			//throw new NotImplementedException();
-			//new GroupingKey();
-			return res.ToList();
-		}
 
 		private List<Group<T>> GroupRows(IEnumerable<Field> fields, bool sort = false)
 		{
@@ -910,57 +939,42 @@ namespace Pivot
 		{
 			List<Group<T>> originalLastGroups = lastGroups;
 
-//			List<Group<T>> lastGroups = new List<Group<T>>();
-//		lastGroups.Add(new Group<T> { Rows = _list, IsRoot = true });
+			//			List<Group<T>> lastGroups = new List<Group<T>>();
+			//		lastGroups.Add(new Group<T> { Rows = _list, IsRoot = true });
 
 			foreach (Field gf in fields)
 			{
 				var getter = _props[gf.FieldName];
 
-				//if (lastGroups == null)
-				//{
-				//	var subGroups = _list.GroupBy(r => getter.GetValue(r.Yield()), gf.Comparer).Select(g => new Group<T>()
-				//	{
-				//		Key = g.Key,
-				//		Rows = g,
-				//		Field = gf,
-				//		ParentGroup = null!
-				//	});
+				var allSubGroups = new List<Group<T>>();
 
-				//	lastGroups = subGroups.ToList();
-				//}
-				//else
+				foreach (var go in lastGroups)
 				{
-					var allSubGroups = new List<Group<T>>();
-
-					foreach (var go in lastGroups)
+					var subGroups = go.Rows.GroupBy(r => getter.GetValue(r.Yield()), gf.Comparer).Select(g => new Group<T>()
 					{
-						var subGroups = go.Rows.GroupBy(r => getter.GetValue(r.Yield()), gf.Comparer).Select(g => new Group<T>()
-						{
-							Key = g.Key,
-							Rows = g,
-							Field = gf,
-							ParentGroup = go
-						});
+						Key = g.Key,
+						Rows = g,
+						Field = gf,
+						ParentGroup = go
+					});
 
-						if (lastGroups == originalLastGroups)
-						{
-							if (freeOriginalLastGroupsMem)
-								go.Rows = null!; // free mem, no longer needed now we have divided rows futher down in sub groups
-						}
-						else
-						{
+					if (lastGroups == originalLastGroups)
+					{
+						if (freeOriginalLastGroupsMem)
 							go.Rows = null!; // free mem, no longer needed now we have divided rows futher down in sub groups
-						}
-
-						if (sort)
-							allSubGroups.AddRange(subGroups.OrderBy(sg => sg.Key)); // displayText or value?
-						else
-							allSubGroups.AddRange(subGroups);
+					}
+					else
+					{
+						go.Rows = null!; // free mem, no longer needed now we have divided rows futher down in sub groups
 					}
 
-					lastGroups = allSubGroups;
+					if (sort)
+						allSubGroups.AddRange(subGroups.OrderBy(sg => sg.Key)); // displayText or value?
+					else
+						allSubGroups.AddRange(subGroups);
 				}
+
+				lastGroups = allSubGroups;
 			}
 
 			return lastGroups;
@@ -968,14 +982,14 @@ namespace Pivot
 
 		public DataTable GetDataTable()
 		{
-			DataTable res = new();
+			var t = GetTableFastIntersect_objectArr();
 
-			foreach (var f in _fields)
+			DataTable res = new("row");
+
+			foreach (var f in t.Columns)
 			{
-				res.Columns.Add(f.FieldName, f.DataType);
+				res.Columns.Add(f.Name, (Type)f.DataType);
 			}
-
-			var t = GetTable();
 
 			res.BeginLoadData();
 			foreach (var oarr in t.Rows)
@@ -994,15 +1008,40 @@ namespace Pivot
 			return _fields.Where(f => f.FieldType == FieldType.Data);//.OrderBy(f => f.Index);
 		}
 
-		private IEnumerable<Field> GetGroupFields()
+		//private IEnumerable<Field> GetGroupFields()
+		//{
+		//	return _fields.Where(f => f.FieldType == FieldType.RowGroup).OrderBy(f => f.GroupIndex)
+		//		.Concat(_fields.Where(f => f.FieldType == FieldType.ColGroup).OrderBy(f => f.GroupIndex));
+		//}
+
+		public Table<Dictionary<string, object?>> GetTableSlowIntersect_DictArr()
 		{
-			return _fields.Where(f => f.FieldType == FieldType.RowGroup).OrderBy(f => f.GroupIndex)
-				.Concat(_fields.Where(f => f.FieldType == FieldType.ColGroup).OrderBy(f => f.GroupIndex));
+			var s1d = GetTableSlowIntersect();
+			return Next< Dictionary<string, object?>>(s1d, (rows, tcols) =>
+			{
+				List<Dictionary<string, object?>> dictRows = new();
+
+				foreach (var row in rows)
+				{
+					Dictionary<string, object?> dictRow = new();
+					foreach (var v in row.Zip(tcols))
+						dictRow.Add(v.Second.Name, v.First);
+
+					dictRows.Add(dictRow);
+				}
+
+				return dictRows;
+			});
 		}
 
 
+		public Table<object?[]> GetTableSlowIntersect_objectArr()
+		{
+			var s1d = GetTableSlowIntersect();
+			return Next(s1d, (rows, tcols) => rows);
+		}
 
-		public Table GetTableSlowIntersect()
+		public Step1Data GetTableSlowIntersect()//<TRow>(Func<List<object?[]>, List<TableColumn>, List<TRow>> toRows)
 		{
 			var dataFields = GetDataFields().ToArray();
 
@@ -1039,160 +1078,303 @@ namespace Pivot
 				}
 			}
 
-			//			var colGrops_ = lastColGroups.GroupBy(lg => GetAllColGroupLevels(lg));
-			// TODO: bruker per nu ikke radene som er gruppert...så kunne like gjerne vært en dictionary med keys?
-
-			var colFieldsInSortOrder = _fields.Where(f => f.FieldType == FieldType.ColGroup)
-				.Where(f => f.Sorting != Sorting.None)
-				.OrderBy(f => f.SortIndex).ToArray();
-
-			lastColGroups = SortColGroups(lastColGroups, colFieldsInSortOrder).ToList();
-			// TODO: bruker per nu ikke radene som er gruppert...så kunne like gjerne vært en dictionary med keys?
-
-
-			// (colGroups * dataFields) are the number of cols we need, in addition to cols for rowGroups (one col per row group)
-
-
-
-
-			List<object?[]> rowsss = GetFullRows(dataFields, rowFieldsInGroupOrder, lastRowGroups, lastColGroups /* sorted*/);
-			//colGrops.Select(cg => cg.Key).ToList());
-
-			// TODO: column groupings namings!!!
-
-			rowsss = SortRowsNew(rowsss);
-
-			Table t = new Table();
-			t.Rows = rowsss;
-			var tableCols = CreateTableCols(dataFields, rowFieldsInGroupOrder, lastColGroups /* sorted*/ );
-			t.Columns = tableCols;
-			t.ColumnGroups = colFieldsInGroupOrder.Select(f => new TableColumn
+			return new Step1Data()
 			{
-				Name = f.FieldName,
-				DataType = f.DataType,
-				FieldType = f.FieldType,
-				Sorting = f.Sorting,
-				SortIndex = f.SortIndex,
-				GroupIndex = f.GroupIndex
-			}).ToList();
-
-
-
-
-			//foreach (var colGroup in colGrops)
-			//{
-			//	Stack<TableGroup> tgs = new();
-
-
-
-
-			//	var parent = gr;
-			//	do
-			//	{
-			//		tgs.Push(new TableGroup { Name = parent.Field.FieldName, Type = parent.Field.Type.Name, Value = parent.Key! });
-			//		parent = parent.ParentGroup;
-			//	} while (parent != null && !parent.IsRoot);
-
-
-
-
-			//	foreach (var df in dataFields)
-			//	{
-
-
-
-
-			//		// /fdfd:34/gfgfg:fdfd/gfgfgfggf
-			//		var middle = string.Join('/', tgs.Select(tg => $"{tg.Name}:{tg.Value}"));
-			//		var combNAme = $"/{middle}/{df.FieldName}";
-
-			//		t.Columns.Add(new TableColumn { Name = combNAme, DataType = df.DataType, ColumnGroups = tgs.ToArray() });
-			//	}
-			//}
-
-
-			// 4.38 min, 4GB ram
-			return t;
+				colFieldsInGroupOrder = colFieldsInGroupOrder,
+				dataFields = dataFields,
+				lastColGroups = lastColGroups,
+				lastRowGroups = lastRowGroups,
+				rowFieldsInGroupOrder = rowFieldsInGroupOrder
+			};
 		}
+
+
 
 		private List<TableColumn> CreateTableCols(Field[] dataFields, Field[] rowGroupFields, List<Group<T>> lastColGroups /* sorted */)
 		{
 			List<TableColumn> tablecols = new();
 			// fill rowGroups
-			int colCount = rowGroupFields.Length + (lastColGroups.Count * dataFields.Length);
-			tablecols.AddRange(rowGroupFields.Select(f => new TableColumn
+			//			int colCount = rowGroupFields.Length + (lastColGroups.Count * dataFields.Length);
+			tablecols.AddRange(rowGroupFields.Select(f => f.ToTableColumn()));
+
+			if (lastColGroups.Any())
 			{
-				Name = f.FieldName,
-				DataType = f.DataType,
-				FieldType = f.FieldType,
-				Sorting = f.Sorting,
-				SortIndex = f.SortIndex,
-				GroupIndex = f.GroupIndex
-			}));
-
-			List<TableColumn> tablecols_after = new();
-			foreach (var gr in lastColGroups)
-			{
-				Stack<TableGroup> tgs = new();
-
-				var parent = gr;
-				do
+				List<TableColumn> tablecols_after = new();
+				foreach (var gr in lastColGroups)
 				{
-					tgs.Push(new TableGroup { Name = parent.Field.FieldName, DataType = parent.Field.DataType, Value = parent.Key });
-					parent = parent.ParentGroup;
-				} while (parent != null && !parent.IsRoot);
+					Stack<TableGroup> tgs = new();
 
-				foreach (var dataField in dataFields)
-				{
-					// /fdfd:34/gfgfg:fdfd/gfgfgfggf
-					var middle = string.Join('/', tgs.Select(tg => $"{tg.Name}:{tg.Value}"));
-					var combNAme = $"/{middle}/{dataField.FieldName}";
+					var parent = gr;
+					do
+					{
+						tgs.Push(new TableGroup { Name = parent.Field.FieldName, 
+							//DataType = parent.Field.DataType,
+							Value = parent.Key });
 
-					tablecols_after.Add(new TableColumn { Name = combNAme, DataType = dataField.DataType, GroupValues = tgs.Select(tg => tg.Value).ToArray() });
+						parent = parent.ParentGroup;
+					} while (parent != null && !parent.IsRoot);
+
+					foreach (var dataField in dataFields)
+					{
+						// /fdfd:34/gfgfg:fdfd/gfgfgfggf
+						var middle = string.Join('/', tgs.Select(tg => $"{Escape(tg.Name)}:{Escape(Convert.ToString(tg.Value) ?? string.Empty)}"));
+						var combNAme = $"/{middle}/{Escape(dataField.FieldName)}";
+
+						tablecols_after.Add(dataField.ToTableColumn(combNAme, tgs.Select(tg => tg.Value).ToArray() ));
+					}
 				}
+
+				//			tablecols_after = SortColGroupsCols(tablecols_after, colGroupFields);
+
+				tablecols.AddRange(tablecols_after);
 			}
-
-//			tablecols_after = SortColGroupsCols(tablecols_after, colGroupFields);
-
-			tablecols.AddRange(tablecols_after);
+			else
+			{
+				tablecols.AddRange(dataFields.Select(df => df.ToTableColumn()));
+			}
 
 			return tablecols;
 		}
 
-		//private List<TableColumn> SortColGroupsCols(List<TableColumn> tablecols_after, Field[] colFields)
+
+		/// <summary>
+		///  : 	%3A
+		///	/ 	%2F
+		///   % 	%25
+		/// </summary>
+		/// <param name="str"></param>
+		/// <returns></returns>
+		private static string Escape(string str)
+		{
+			StringBuilder sb = new();
+			foreach (var c in str)
+			{
+				if (c == '/')
+					sb.Append("%2F");
+				else if (c == ':')
+					sb.Append("%3A");
+				else if (c == '%')
+					sb.Append("%25");
+				else
+					sb.Append(c);
+			}
+			return sb.ToString();
+		}
+
+		//public class PathElement
 		//{
-		//	//tablecols_after.OrderBy(tc => tc.)
-
-		//	if (colFields.Any())
-		//	{
-		//		IOrderedEnumerable<Pivot.TableColumn> sorter = null!;
-
-		//		int colFieldIdx = 0;
-		//		foreach (var colField in colFields)
-		//		{
-		//			int colFieldIdx_local_capture = colFieldIdx;
-
-		//			if (sorter == null)
-		//				sorter = colField.Sorting == Sorting.Asc ?
-		//					tablecols_after.OrderBy(r => r.ColumnGroups![colFieldIdx_local_capture])
-		//					: tablecols_after.OrderByDescending(r => r.ColumnGroups![colFieldIdx_local_capture]);
-		//			else
-		//				sorter = colField.Sorting == Sorting.Asc ?
-		//					sorter.ThenBy(r => r.ColumnGroups![colFieldIdx_local_capture])
-		//					: sorter.ThenByDescending(r => r.ColumnGroups![colFieldIdx_local_capture]);
-
-		//			colFieldIdx++;
-		//		}
-
-		//		tablecols_after = sorter.ToList(); // tolist needed?
-
-				
-		//	}
-
-		//	return tablecols_after;
+		//	public string Name;
+		//	public object Value;
 		//}
 
-		public Table GetTableFastIntersect()
+		//public static PathElement[] SplitPathName(string str)
+		//{
+		//	if (!str.StartsWith('/'))
+		//		throw new ArgumentException("Must start with '/'");
+
+		//	var parts = str.Split('/');
+		//	// make sure first part is empty
+
+		//	PathElement[] res = new PathElement[parts.Length - 1];
+			
+			
+
+		//}
+
+		/// <summary>
+		/// You have a column name.
+		/// First, split it by '/'. Now have the groups.
+		/// For every group, split by ':'. Now have the group name and the value.
+		/// Next, Unescape the group name and the value.
+		/// 
+		/// 
+		///  : 	%3A
+		///	/ 	%2F
+		///   % 	%25
+		/// </summary>
+		/// <param name="str"></param>
+		/// <returns></returns>
+		public static string Unescape(string str)
+		{
+			StringBuilder sb = new();
+			bool foundPerc = false;
+			bool foundChar1 = false;
+			char char1 = 'X';
+
+			foreach (var c in str)
+			{
+				if (foundPerc)
+				{
+					if (foundChar1)
+					{
+						// now we have char2
+						if (char1 == '3' && c == 'A')
+						{
+							sb.Append(':');
+						}
+						else if (char1 == '2' && c == 'F')
+						{
+							sb.Append('/');
+						}
+						else if (char1 == '2' && c == '5')
+						{
+							sb.Append('%');
+						}
+						else
+						{
+							throw new Exception($"Invalid escape code '%{char1}{c}'");
+						}
+
+						// reset
+						foundPerc = false;
+						foundChar1 = false;
+						char1 = 'X';
+					}
+					else
+					{
+						foundChar1 = true;
+						char1 = c;
+					}
+				}
+				else if (c == '%')
+				{
+					foundPerc = true;
+				}
+				else
+				{
+					sb.Append(c);
+				}
+			}
+			return sb.ToString();
+		}
+
+		public Table<object?[]> GetTableFastIntersect_objectArr()
+		{
+			var s1d = GetTableFastIntersect();
+			return Next(s1d, (rows, tcols) => rows);
+			//return GetTableFastIntersect((rows, tcols) => rows);
+		}
+
+		public Table<IDictionary<string, object?>> GetTableFastIntersect_DictArr()
+		{
+			var s1d = GetTableFastIntersect();
+
+			return Next<IDictionary<string, object?>>(s1d, (rows, tcols) =>
+			{
+				List<IDictionary<string, object?>> dictRows = new();
+
+				foreach (var row in rows)
+				{
+					//Dictionary<string, object?> dictRow = new();
+					//foreach (var v in row.Zip(tcols))
+					//	dictRow.Add(v.Second.Name, v.First);
+
+					var dictRow = new WrapperObj(row, tcols);
+
+					dictRows.Add(dictRow);
+				}
+
+				return dictRows;
+			});
+		}
+
+
+
+
+		class WrapperObj : IDictionary<string, object?>
+		{
+			object?[] _row;
+			List<TableColumn> _tcols;
+
+			public WrapperObj(object?[] row, List<TableColumn> tcols)
+			{
+				_row = row;
+				_tcols = tcols;
+			}
+
+			public IEnumerator<KeyValuePair<string, object?>> GetEnumerator()
+			{
+				var a = _row.Zip(_tcols).Select(a => new KeyValuePair<string, object?>(a.Second.Name, a.First));
+				return a.GetEnumerator();
+				//throw new NotImplementedException();
+			}
+
+
+			public object? this[string key] { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+
+			public ICollection<string> Keys => throw new NotImplementedException();
+
+			public ICollection<object?> Values => throw new NotImplementedException();
+
+			public int Count => throw new NotImplementedException();
+
+			public bool IsReadOnly => throw new NotImplementedException();
+
+			public void Add(string key, object? value)
+			{
+				throw new NotImplementedException();
+			}
+
+			public void Add(KeyValuePair<string, object?> item)
+			{
+				throw new NotImplementedException();
+			}
+
+			public void Clear()
+			{
+				throw new NotImplementedException();
+			}
+
+			public bool Contains(KeyValuePair<string, object?> item)
+			{
+				throw new NotImplementedException();
+			}
+
+			public bool ContainsKey(string key)
+			{
+				throw new NotImplementedException();
+			}
+
+			public void CopyTo(KeyValuePair<string, object?>[] array, int arrayIndex)
+			{
+				throw new NotImplementedException();
+			}
+
+
+
+			public bool Remove(string key)
+			{
+				throw new NotImplementedException();
+			}
+
+			public bool Remove(KeyValuePair<string, object?> item)
+			{
+				throw new NotImplementedException();
+			}
+
+			public bool TryGetValue(string key, [MaybeNullWhen(false)] out object? value)
+			{
+				throw new NotImplementedException();
+			}
+
+			IEnumerator IEnumerable.GetEnumerator()
+			{
+				throw new NotImplementedException();
+			}
+		}
+
+		public class Step1Data
+		{
+			public Field[] rowFieldsInGroupOrder;
+			public Field[] colFieldsInGroupOrder;
+
+			public Field[] dataFields;
+
+			public List<Group<T>> lastRowGroups;
+			public List<Group<T>> lastColGroups;
+		}
+
+		public Step1Data GetTableFastIntersect()//Func<List<object?[]>, List<TableColumn>, List<TRow>> toRows)
 		{
 			//	Table t = new();
 			//			t.Columns = _fields.Select(f => new TableColumn { Name = f.FieldName, Type = f.Type.Name }).ToList();
@@ -1211,7 +1393,7 @@ namespace Pivot
 
 			foreach (var lastG in lastRowAndColGroups)
 			{
-				if (lastRowAndColGroups == lastRowGroups)
+				if (colFieldsInGroupOrder.Length == 0)//lastRowAndColGroups == lastRowGroups)
 				{
 					// no col grouping
 					lastG.RowData = new object?[dataFields.Length];
@@ -1225,7 +1407,7 @@ namespace Pivot
 					var theValue = getter.GetValue(lastG.Rows);
 
 					//					if (lastRowG == lastG)
-					if (lastRowAndColGroups == lastRowGroups)
+					if (colFieldsInGroupOrder.Length == 0)//lastRowAndColGroups == lastRowGroups)
 					{
 						// no col grouping
 						lastG.RowData[dataFieldIdx] = theValue;
@@ -1259,147 +1441,86 @@ namespace Pivot
 					}
 
 					dataFieldIdx++;
-					// MEN...hva tjener vi på grupperingen??????
-					// Kunne vi ikke bare looped den siste gruppen og hentet rowValues og colValues fra parents??
-					// Da har vi jo intersecten direkte....
-
-					//		row_o[dataField.idx] = theValue;
 				}
 			}
 
-			// Want to sort the col groups. Multilevel, just like as for regular rows.
-			// GroupRows can do the sorting, need an extra bool for that.
-			// very slow
-			//			List<Group<T>> lastColGroups = GroupRows(_fields.Where(f => f.Grouping == Grouping.Col).OrderBy(f => f.GroupIndex), sort: true);
-			//		lastColGroups.ForEach(g => g.Rows = null!); // free mem
-
-
-			//if (lastColGroups == null)
-			//{
-			//	t.Columns = _fields.Select(f => new TableColumn { Name = f.FieldName, Type = f.Type.Name }).ToList();
-
-			//	int idx = 0;
-			//	foreach (var f in _fields)
-			//		f.idx = idx++;
-			//}
-			//else
-			//{
-			//	//var tableColsForRowFields = _fields.Where(f => f.Area == Area.Row).Select(f => new TableColumn { Name = f.FieldName, Type = f.Type.Name });
-			//	t.Columns = new();
-
-			//	int idx = 0;
-			//	foreach (var f in _fields.Where(f => f.Grouping != Grouping.Col))
-			//	{
-			//		if (f.Grouping == Grouping.None)
-			//		{
-			//			f.idx = idx; // start_data_idx
-			//			idx += lastColGroups.Count;
-
-			//			foreach (var gr in lastColGroups)
-			//			{
-			//				Stack<TableGroup> tgs = new();
-
-			//				var parent = gr;
-			//				do
-			//				{
-			//					tgs.Push(new TableGroup { Name = parent.Field.FieldName, Type = parent.Field.Type.Name, Value = parent.Key! });
-			//					parent = parent.ParentGroup;
-			//				} while (parent != null && !parent.IsRoot);
-
-			//				// /fdfd:34/gfgfg:fdfd/gfgfgfggf
-			//				var middle = string.Join('/', tgs.Select(tg => $"{tg.Name}:{tg.Value}"));
-			//				var combNAme = $"/{middle}/{f.FieldName}";
-
-			//				t.Columns.Add(new TableColumn { Name = combNAme, Type = f.Type.Name, ColumnGroups = tgs.ToArray() });
-			//			}
-			//		}
-			//		else // row
-			//		{
-			//			f.idx = idx++;
-			//			t.Columns.Add(new TableColumn { Name = f.FieldName, Type = f.Type.Name });
-			//		}
-			//	}
-
-
-
-			//}
-
-//			var colGrops_ = lastRowAndColGroups.GroupBy(lg => GetAllColGroupLevels(lg));//
-																						// TODO: bruker per nu ikke radene som er gruppert...så kunne like gjerne vært en dictionary med keys?
-
 			var syntColGroups = htSynthMergedColGroups.Values.ToList();
+
+			return new Step1Data()
+			{
+				colFieldsInGroupOrder = colFieldsInGroupOrder,
+				dataFields = dataFields,
+				lastColGroups = syntColGroups,
+				lastRowGroups = lastRowGroups
+			};
+		}
+
+		//public Table<TRow> Next<TRow>(Step1Data s1d, Func<List<object?[]>, List<TableColumn>, List<TRow>> toRows)
+		//{
+
+		//	//			var colGrops_ = lastColGroups.GroupBy(lg => GetAllColGroupLevels(lg));
+		//	// TODO: bruker per nu ikke radene som er gruppert...så kunne like gjerne vært en dictionary med keys?
+
+		//	var colFieldsInSortOrder = _fields.Where(f => f.FieldType == FieldType.ColGroup)
+		//		.Where(f => f.Sorting != Sorting.None)
+		//		.OrderBy(f => f.SortIndex).ToArray();
+
+		//	var lastColGroups = SortColGroups(s1d.lastColGroups, colFieldsInSortOrder).ToList();
+		//	// TODO: bruker per nu ikke radene som er gruppert...så kunne like gjerne vært en dictionary med keys?
+
+
+		//	// (colGroups * dataFields) are the number of cols we need, in addition to cols for rowGroups (one col per row group)
+
+		//	// TODO: metoden kunne ha sluttet her...
+
+
+		//	List<object?[]> rowsss = GetFullRows(s1d.dataFields, s1d.rowFieldsInGroupOrder, s1d.lastRowGroups, lastColGroups /* sorted*/);
+		//	//colGrops.Select(cg => cg.Key).ToList());
+
+		//	// TODO: column groupings namings!!!
+		//	var tableCols = CreateTableCols(s1d.dataFields, s1d.rowFieldsInGroupOrder, lastColGroups /* sorted*/ );
+
+		//	rowsss = SortRowsNew(rowsss, tableCols);
+
+		//	Table<TRow> t = new Table<TRow>();
+		//	t.Rows = toRows(rowsss, tableCols);
+
+		//	t.Columns = tableCols;
+		//	t.RowGroups = s1d.rowFieldsInGroupOrder.Select(f => f.ToTableColumn()).ToList();
+		//	t.ColumnGroups = s1d.colFieldsInGroupOrder.Select(f => f.ToTableColumn()).ToList();
+
+		//	// 4.38 min, 4GB ram
+		//	return t;
+		//}
+
+		public Table<TRow> Next<TRow>(Step1Data s1d, Func<List<object?[]>, List<TableColumn>, List<TRow>> toRows)
+		{ 
 
 			var colFieldsInSortOrder = _fields.Where(f => f.FieldType == FieldType.ColGroup)
 				.Where(f => f.Sorting != Sorting.None)
 				.OrderBy(f => f.SortIndex).ToArray();
 
-			syntColGroups = SortColGroups(syntColGroups, colFieldsInSortOrder).ToList();
+			var lastColGroups = SortColGroups(s1d.lastColGroups, colFieldsInSortOrder).ToList();
 			// TODO: bruker per nu ikke radene som er gruppert...så kunne like gjerne vært en dictionary med keys?
 
 
 			// (colGroups * dataFields) are the number of cols we need, in addition to cols for rowGroups (one col per row group)
 
-			List<object?[]> rowsss = GetFullRows(dataFields, rowFieldsInGroupOrder, lastRowGroups, syntColGroups /* sorted */);
-				//colGrops.Select(cg => cg.Key).ToList());
+			
 
 
-			// Sum data
-
-			//Dictionary<(Group<T>, Group<T>), object?> intersectData = new();
-
-			////if (lastRowGroups != null)
-			//{
-			//	foreach (var rowGroup in lastRowGroups)
-			//	{
-			//		rowGroup.IntersectData ??= new();
-
-			//		var hsRowGroupRows = rowGroup.Rows.ToHashSet();
 
 
-			//		//var parent = rowGroup;
-			//		//do
-			//		//{
-			//		//	row_o[parent.Field.idx] = parent.Key;
-			//		//	parent = parent.ParentGroup;
-			//		//} while (parent != null && !parent.IsRoot);
+			// TODO: when writing to json, instead of writing full rows we could write objects........
+			// I guess the method could have ended at this point....and some other code could work on this.
+			// The code below work on it to produce flat tables.
+			// But some other code could produce json nested objects...
 
-			//		//t.Rows.Add(row_o);
-			//	}
-			//}
-			//else // no row groups, total sum
-			//{
-			//	var row_o = new object?[t.Columns.Count()];
 
-			//	//foreach (Field dataField in dataFields)
-			//	{
-			//		if (lastColGroups == null)
-			//		{
-			//			foreach (Field dataField in dataFields)
-			//			{
-			//				var getter = _props[dataField.FieldName];
-			//				var theValue = getter.GetValue(_list);
+			List<object?[]> rowsss = GetFullRows(s1d.dataFields, s1d.rowFieldsInGroupOrder, s1d.lastRowGroups, lastColGroups /* sorted */);
+			//colGrops.Select(cg => cg.Key).ToList());
 
-			//				row_o[dataField.idx] = theValue;
-			//			}
-			//		}
-			//		else // stuggt....finn bedre måte å handle at det ikke er no gruppe...
-			//		{
-			//			int colgIdx = 0;
-			//			foreach (var colGroup in lastColGroups)
-			//			{
-			//				foreach (Field dataField in dataFields)
-			//				{
-			//					var getter = _props[dataField.FieldName];
-			//					var theValue = getter.GetValue(colGroup.Rows);
 
-			//					row_o[dataField.idx + colgIdx] = theValue;
-			//				}
-			//				colgIdx++;
-			//			}
-			//		}
-			//	}
-
-			//	t.Rows.Add(row_o);
 			//}
 			// else...a mode for output 1:1?
 			//{
@@ -1419,28 +1540,21 @@ namespace Pivot
 			//}
 
 
+			var tableCols = CreateTableCols(s1d.dataFields, s1d.rowFieldsInGroupOrder, lastColGroups /* sorted*/ );
 
-			rowsss = SortRowsNew(rowsss);
+			rowsss = SortRowsNew(rowsss, tableCols);
 
 
 
-			Table t = new Table();
-			t.Rows = rowsss;
-			var tableCols = CreateTableCols(dataFields, rowFieldsInGroupOrder, syntColGroups /* sorted*/ );
+			Table<TRow> t = new Table<TRow>();
+			t.Rows = toRows(rowsss, tableCols);
+			
 			t.Columns = tableCols;
-			t.ColumnGroups = colFieldsInGroupOrder.Select(f => new TableColumn
-			{
-				Name = f.FieldName,
-				DataType = f.DataType,
-				FieldType = f.FieldType,
-				Sorting = f.Sorting,
-				SortIndex = f.SortIndex,
-				GroupIndex = f.GroupIndex
-			}).ToList();
+			t.RowGroups = s1d.rowFieldsInGroupOrder.Select(f => f.ToTableColumn()).ToList();
+			t.ColumnGroups = s1d.colFieldsInGroupOrder.Select(f => f.ToTableColumn()).ToList();
 
 
-			return t; // rows_o;
-			//throw new NotImplementedException();
+			return t; 
 		}
 
 		private Group<T> CloneColGroups(Group<T> lg)
@@ -1477,7 +1591,11 @@ namespace Pivot
 			List<object?[]> rows = new();
 
 			// funke dette uten colGroups?
-			int colCount = rowFieldsInGroupOrder.Length + (lastColGroups.Count * dataFields.Length);
+			int colCount = rowFieldsInGroupOrder.Length;
+			if (lastColGroups.Any())
+				colCount += (lastColGroups.Count * dataFields.Length);
+			else
+				colCount += dataFields.Length;
 
 			Dictionary<Group<T>, int> grpStartIdx = new();
 			int totalStartIdx = rowFieldsInGroupOrder.Length;
@@ -1513,27 +1631,33 @@ namespace Pivot
 					par_idx--;
 				} while (parent != null && !parent.IsRoot);
 
-
-				// this produce one row in the table
-				foreach (var colGrp in lastColGroups)
+				if (lastColGroups.Any())
 				{
-					var startIdx = grpStartIdx[colGrp];
+					// this produce one row in the table
+					foreach (var colGrp in lastColGroups)
+					{
+						var startIdx = grpStartIdx[colGrp];
 
-					if (lastRowGroup.IntersectData.TryGetValue(colGrp, out var values))
-					{
-						// write values
-						Array.Copy(values, 0, row, startIdx, values.Length);
-					}
-					else
-					{
-						// write default values
-						if (defaultValues == null)
+						if (lastRowGroup.IntersectData.TryGetValue(colGrp, out var values))
 						{
-							throw new NotImplementedException();
+							// write values
+							Array.Copy(values, 0, row, startIdx, values.Length);
 						}
-						Array.Copy(defaultValues, 0, row, startIdx, defaultValues.Length);
-					}
+						else
+						{
+							// write default values
+							if (defaultValues == null)
+							{
+								throw new NotImplementedException();
+							}
+							Array.Copy(defaultValues, 0, row, startIdx, defaultValues.Length);
+						}
 
+					}
+				}
+				else
+				{
+					Array.Copy(lastRowGroup.RowData, 0, row, totalStartIdx, lastRowGroup.RowData.Length);
 				}
 
 				rows.Add(row);
@@ -1596,7 +1720,7 @@ namespace Pivot
 	public class TableGroup
 	{
 		public string Name { get; set; }
-		public object DataType { get; set; }
+		//public object DataType { get; set; }
 
 		public object? Value { get; set; }
 
